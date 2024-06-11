@@ -1,0 +1,253 @@
+(ql:quickload '(:reblocks :reblocks-ui :reblocks-navigation-widget :mito))
+(defpackage testtasks
+  (:use :cl)
+  (:import-from #:40ants-doc
+                #:defsection)
+  (:import-from #:reblocks/app
+		#:defapp)
+  (:import-from #:reblocks-ui/form)
+  (:import-from #:reblocks/html)
+  (:import-from #:reblocks-navigation-widget
+		#:defroutes)
+  (:import-from #:reblocks/js/base
+		#:with-javascript) ;;trick to resolve naming conflicts  (unintern 'quickstart::with-javascript '#:quickstart)
+  (:import-from #:reblocks/session
+		#:reset)
+  (:import-from #:parenscript)
+  (:import-from #:mito))
+(in-package testtasks)
+
+
+
+  (defparameter *stat* nil)
+(mito:connect-toplevel :sqlite3 :database-name "mytaskdb")
+
+(mito:deftable taskt ()
+  ((title :col-type :text)
+   (tag :col-type :text)
+   (done :col-type (:integer 0)))
+  (:conc-name task-))
+
+;;(if (mito:ensure-table-exists 'taskt)
+;;    nil
+;;    (mapc #'mito:execute-sql (mito:table-definition 'taskt)))
+
+;;(defvar ataskt (car (mito:retrieve-dao 'taskt :id 1)))
+;;(defvar ataskw (make-instance 'taskw :title (taskt-title ataskt) :done (taskt-done ataskt)))
+
+(defroutes apps-routes
+    ("/" (make-home-page))
+    ("/tasks/" (make-task-list))
+  ("/others" (make-others)))
+
+(reblocks/app:defapp rootapp :prefix "/")
+(reblocks/widget:defwidget homepage ()
+  ((title
+    :initarg :title
+    :initform "Welcome to Michael's family system!"
+    :reader get-title)
+   (body
+    :initarg :body
+    :initform "Here are list of family function in the system you could visit:"
+    :reader get-body)
+   (functions
+    :initarg :func
+    :initform '(gallery calendar task blog)
+    :reader get-funcs)))
+(defun make-home-page ()
+  (make-instance 'homepage))
+(defmethod reblocks/widget:render ((hpw homepage))
+    "Render Homepage."
+    (reblocks/html:with-html
+      (:h1 "Welcome to Michael's family system homepage!")
+      (:h2 "There are following functions in this family system:"))(reblocks/html:with-html 
+  (:h3 (get-title hpw))
+  (:p (get-body hpw))
+  (:ul
+   (loop for e in (get-funcs hpw) do
+	 (:li e)))))
+;;it seems only root uri "/" need this init-page method, other routes could be done through defroutes!
+(defmethod reblocks/page:init-page ((app rootapp) (url-path string) expire-at)
+  (declare (ignorable app url-path expire-at))
+  (make-home-page))
+
+(reblocks/app:defapp otherapp :prefix "/others/")
+(reblocks/widget:defwidget others ()
+  ())
+(defun make-others ()
+  (make-instance 'others))
+(defmethod reblocks/widget:render ((ow others))
+    "Render others."
+    (reblocks/html:with-html
+      (:h1 "Other apps")
+      (:p "To show other apps here")))
+
+(defmethod reblocks/page:init-page ((app otherapp) (url-path string) expire-at)
+  (declare (ignorable app url-path expire-at))
+  (make-others))
+
+(reblocks/app:defapp taskapp :prefix "/tasks/")
+(reblocks/widget:defwidget task ()
+    ((title
+      :initarg :title
+      :accessor title)
+     (tag
+      :initarg :tag
+      :accessor tag)
+     (done
+      :initarg :done
+      :initform 0
+      :accessor done)))
+  
+  (reblocks/widget:defwidget task-list ()
+    ((tasks
+      :initarg :tasks
+      :accessor tasks)))
+
+(reblocks/widget:defwidget msgbox ()
+  ((title
+    :initarg :title
+    :accessor title
+    :initform "message")))
+(defun make-msgbox (title)
+  (make-instance 'msgbox :title title))
+(defmethod reblocks/widget:render ((mb msgbox))
+  (reblocks/html:with-html
+    (:p (title mb))
+    (:div :class "alert"
+	  (:span :class "closebtn"
+		 :onclick "this.parentElement.style.display='none';")
+	  :value "the task is about to delete")))
+
+(defun combine-title-tag (task)
+  (format nil "~A:~A" (title task)(tag task)))
+  
+
+(defmethod reblocks/widget:render ((task task))
+    (reblocks/html:with-html
+      (:p (:input :type "checkbox"
+                  :checked (if (= 0 (done task)) nil t)
+                  :onclick (reblocks/actions:make-js-action
+                            (lambda (&key &allow-other-keys)
+                              (toggle task))))
+          (:span (if (= 1 (done task))
+		     (reblocks/html:with-html
+                       ;; strike
+                       (:s (combine-title-tag task)))
+                     (combine-title-tag task)))
+	  (:input :type "submit"
+		  :class "button"
+		  :value "Delete"
+		  :onclick (reblocks/actions:make-js-action
+                            (lambda (&key &allow-other-keys)
+                              (del-task task)))))))
+
+  ;;(defmethod reblocks/widget:render ((widget task-list))
+  ;;  "Render a list of tasks."
+    ;;(reblocks/html:with-html
+      ;;(:h1 "Tasks")
+      ;;(:ul
+       ;;(loop for task in (tasks widget) do
+         ;;(:li (reblocks/widget:render task))))))
+
+  (defun make-task (title &key tag done)
+    (make-instance 'task :title title :tag tag :done done))
+
+(defun make-task-list ()
+  (make-instance 'task-list
+		:tasks
+		(loop for row in (mito:retrieve-dao 'taskt) collect
+		  (make-task (task-title row) :tag (task-tag row) :done (task-done row)))))
+    ;;(make-instance 'task-list
+    ;;               :tasks (list (make-task "Make my first Reblocks app" :tag "work")
+    ;;                            (make-task "Deploy it somewhere" :tag "work")
+    ;;                            (make-task "Have a profit" :tag "personal"))))
+
+;;in original example, add-task is a method (defmethod), i think defun should be fine
+;;but also notice that if you define a method without defgeneric, the lisp will automatic generate one for you. so if you wanna change the signature of method, you have to explicitly define defgeneric.
+;;(defgeneric add-task (task-list title tag))
+(defun add-task (task-list title tag)
+    (push (make-task title :tag tag :done 0)
+          (tasks task-list))
+  (mito:create-dao 'taskt :title title :tag tag :done 0)
+    (reblocks/widget:update task-list))
+  
+  (defmethod reblocks/widget:render ((task-list task-list))
+    (reblocks/html:with-html
+      (:h1 "Tasks")      
+      (:input :type "button"
+	      :value "refresh")
+	      ;;:onclick (reblocks/js/base:with-javascript
+		;;	   ";"))
+			;;(lambda (&key &allow-other-keys)
+			 ;;"window.location.reload()")));;<- this is not working!
+      (loop for task in (tasks task-list) do
+        (reblocks/widget:render task))
+      (reblocks-ui/form:with-html-form (:POST (lambda (&key title tag &allow-other-keys)
+                                                (add-task task-list title tag)))
+        (:input :type "text"
+                :name "title"
+                :placeholder "Task's title")
+         (:input :type "text"
+                :name "tag"
+                :placeholder "Task's tag")
+	(:input :type "submit"
+                :class "button"
+                :value "Add"))))
+
+(defun page-refresh ()
+    (if *stat*
+	  "history.go(0);"
+	  ";"))
+
+(defmethod toggle ((task task))
+  (setf (done task) 1)
+  (let ((tosave (mito:find-dao 'taskt :title (title task))))
+    (setf (task-done tosave) 1)
+    (mito:save-dao tosave))
+  (reblocks/widget:update task))
+
+
+(defmethod del-task ((task task))
+  (let ((todelete (mito:find-dao 'taskt :title (title task))))
+    (mito:delete-dao todelete))
+  (reblocks/widget:update task)
+  (reblocks/debug:reset-latest-session)
+  (setf *stat* t))
+
+
+(reblocks/widget:defwidget subtask (task)
+  ((supertaskid
+    :initarg :supertask
+    :accessor :supertask)))
+
+(defun make-subtask (supertaskid title tag done)
+  (make-instance 'subtask :supertaskid supertaskid :title title :tag tag :done done))
+
+(defmethod sub-task ((task task))
+  ())
+
+(defmethod reblocks/widget:render ((subtask subtask))
+  (reblocks-ui/form:with-html-form (:POST (lambda (&key &allow-other-keys)
+                                                (add-sub-task)))
+        (:input :type "text"
+                :name "title"
+                :placeholder "SubTask's title")
+         (:input :type "text"
+                :name "tag"
+                :placeholder "SubTask's tag")
+	(:input :type "submit"
+                :class "button"
+                :value "Add")))
+
+(defun add-sub-task ()
+  "to add subtask code here")
+
+(defmethod reblocks/page:init-page ((app taskapp) (url-path string) expire-at)
+  (declare (ignorable app url-path expire-at))
+  (make-task-list))
+
+(reblocks/server:start :port 5050 :interface "0.0.0.0" :apps '(rootapp taskapp otherapp))
+  (handler-case (bordeaux-threads:join-thread (find-if (lambda (th)
+							 (search "hunchentoot" (bordeaux-threads:thread-name th)))
+						       (bordeaux-threads:all-threads))))
