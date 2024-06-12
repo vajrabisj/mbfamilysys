@@ -1,5 +1,4 @@
-(ql:quickload '(:reblocks :reblocks-ui :reblocks-navigation-widget :mito))
-(defpackage quickstart
+(uiop:define-package #:mbfamilysys/taskapp
   (:use #:cl)
   (:import-from #:40ants-doc
                 #:defsection)
@@ -15,15 +14,11 @@
 		#:reset)
   (:import-from #:parenscript)
   (:import-from #:mito)
-  (:export #:@quickstart))
-(in-package #:quickstart)
+  (:export #:@mbfamilysys/taskapp
+	   #:taskapp))
+(in-package #:mbfamilysys/taskapp)
 
-;;use (reblocks/server:start :port 5050 :interface "0.0.0.0" :apps '(taskapp otherapp rootapp)) to start server
-;;though we have defroutes as following, but the defapp for each route is still a MUST
-;;and you also need to add apps list you want to run into the server:start arguments
-
-(defparameter *stat* nil)
-(mito:connect-toplevel :sqlite3 :database-name "mytaskdb")
+(mito:connect-toplevel :sqlite3 :database-name #P"/root/.roswell/lisp/quicklisp/local-projects/mbfamilysys/src/db/mytaskdb")
 
 (mito:deftable taskt ()
   ((title :col-type :text)
@@ -38,56 +33,6 @@
 ;;(defvar ataskt (car (mito:retrieve-dao 'taskt :id 1)))
 ;;(defvar ataskw (make-instance 'taskw :title (taskt-title ataskt) :done (taskt-done ataskt)))
 
-(defroutes apps-routes
-    ("/" (make-home-page))
-    ("/tasks/" (make-task-list))
-  ("/others" (make-others)))
-
-(reblocks/app:defapp rootapp :prefix "/")
-(reblocks/widget:defwidget homepage ()
-  ((title
-    :initarg :title
-    :initform "Welcome to Michael's family system!"
-    :reader get-title)
-   (body
-    :initarg :body
-    :initform "Here are list of family function in the system you could visit:"
-    :reader get-body)
-   (functions
-    :initarg :func
-    :initform '(gallery calendar task blog)
-    :reader get-funcs)))
-(defun make-home-page ()
-  (make-instance 'homepage))
-(defmethod reblocks/widget:render ((hpw homepage))
-    "Render Homepage."
-    (reblocks/html:with-html
-      (:h1 "Welcome to Michael's family system homepage!")
-      (:h2 "There are following functions in this family system:"))(reblocks/html:with-html 
-  (:h3 (get-title hpw))
-  (:p (get-body hpw))
-  (:ul
-   (loop for e in (get-funcs hpw) do
-	 (:li e)))))
-;;it seems only root uri "/" need this init-page method, other routes could be done through defroutes!
-(defmethod reblocks/page:init-page ((app rootapp) (url-path string) expire-at)
-  (declare (ignorable app url-path expire-at))
-  (make-home-page))
-
-(reblocks/app:defapp otherapp :prefix "/others/")
-(reblocks/widget:defwidget others ()
-  ())
-(defun make-others ()
-  (make-instance 'others))
-(defmethod reblocks/widget:render ((ow others))
-    "Render others."
-    (reblocks/html:with-html
-      (:h1 "Other apps")
-      (:p "To show other apps here")))
-
-(defmethod reblocks/page:init-page ((app otherapp) (url-path string) expire-at)
-  (declare (ignorable app url-path expire-at))
-  (make-others))
 
 (reblocks/app:defapp taskapp :prefix "/tasks/")
 (reblocks/widget:defwidget task ()
@@ -143,13 +88,7 @@
 		  :value "Delete"
 		  :onclick (reblocks/actions:make-js-action
                             (lambda (&key &allow-other-keys)
-                              (del-task task))))
-	  (:input :type "submit"
-		  :class "button"
-		  :value "AddSub"
-		  :onclick (reblocks/actions:make-js-action
-                            (lambda (&key &allow-other-keys)
-                              (sub-task task)))))))
+                              (del-task task)))))))
 
   (defmethod reblocks/widget:render ((widget task-list))
     "Render a list of tasks."
@@ -205,7 +144,7 @@
                 :value "Add"))))
 
 (defun page-refresh ()
-    (if *stat*
+    (if mbfamilysys/rootapp:*stat*
 	  "history.go(0);"
 	  ";"))
 
@@ -222,7 +161,7 @@
     (mito:delete-dao todelete))
   (reblocks/widget:update task)
   (reblocks/debug:reset-latest-session)
-  (setf *stat* t))
+  (setf mbfamilysys/rootapp:*stat* t))
 
 
 (defmethod sub-task ((task task))
