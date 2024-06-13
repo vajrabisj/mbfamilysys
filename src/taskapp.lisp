@@ -13,7 +13,8 @@
 		#:with-javascript) ;;trick to resolve naming conflicts  (unintern 'quickstart::with-javascript '#:quickstart)
   (:import-from #:reblocks/session
 		#:reset)
-  (:import-from #:parenscript)
+  ;;(:import-from #:parenscript)
+  (:import-from #:reblocks-parenscript :parenscript)
   (:import-from #:mito)
   (:export #:@mbfamilysys/taskapp
 	   #:taskapp))
@@ -88,30 +89,28 @@
 
 (defmethod reblocks/widget:render ((task task))
   (reblocks/html:with-html
-    (:div
-     (:p (:input :type "checkbox"
-                 :checked (if (= 0 (done task)) nil t)
-                 :onclick (reblocks/actions:make-js-action
-                           (lambda (&key &allow-other-keys)
-                             (toggle task))))
-         (:span (if (= 1 (done task))
-                    (reblocks/html:with-html
-                      (:s (combine-title-tag task)))
-                    (combine-title-tag task)))
-         (:input :type "submit"
-                 :class "button"
-                 :value "Delete"
-                 :onclick (format nil "if (confirm('Are you sure you want to delete this task?')) { window['deleteTaskWithTitle']('~a'); }" (title task)))
-     ;; Initial definition section using format
-     (reblocks/js/base:with-javascript
-      (format nil "window['deleteTaskWithTitle'] = function(taskTitle) {
-                      window[taskTitle + '_deleteTask']();
-                   };
-                   window['~a_deleteTask'] = ~a;"
-              (title task)
-              (reblocks/actions:make-js-action
-                (lambda (&key &allow-other-keys)
-                  (del-task task)))))))
+    (:div ;; Wrapper div for the task
+     (:p ;; Paragraph element for checkbox and task details
+      (:input :type "checkbox"
+              :checked (if (= 0 (done task)) nil t)
+              :onclick (reblocks/actions:make-js-action
+                        (lambda (&key &allow-other-keys)
+                          (toggle task))))
+      ;; Span element to show strike-through text if task is done
+      (:span (if (= 1 (done task))
+                (reblocks/html:with-html
+                  (:s (combine-title-tag task)))
+                (combine-title-tag task)))
+      ;; Input element for delete button with confirmation dialog
+      (:input :type "submit"
+              :class "button"
+              :value "Delete"
+              :onclick (let ((delete-action (reblocks/actions:make-js-action
+                                             (lambda (&key &allow-other-keys)
+                                               (del-task task)))))
+                         (parenscript:ps
+                          (when (confirm "Are you sure you want to delete this task?")
+                            (,@delete-action)))))))))
 
   (defmethod reblocks/widget:render ((widget task-list))
     "Render a list of tasks."
