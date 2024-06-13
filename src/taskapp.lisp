@@ -8,6 +8,7 @@
   (:import-from #:reblocks/html)
   (:import-from #:reblocks-navigation-widget
 		#:defroutes)
+  (:import-from #:reblocks-ui/popup)
   (:import-from #:reblocks/js/base
 		#:with-javascript) ;;trick to resolve naming conflicts  (unintern 'quickstart::with-javascript '#:quickstart)
   (:import-from #:reblocks/session
@@ -70,6 +71,20 @@
 (defun combine-title-tag (task)
   (format nil "~A:~A" (title task)(tag task)))
   
+#|
+(reblocks/widget:defwidget confirm-del-widget (reblocks-ui:ui-widget)
+  ((visible :initform nil
+	    :accessor visible-p)))
+(defun make-confirm-del-pop ()
+  (make-instance 'confirm-del-widget))
+
+(defmethod render-popup-content ((cdelw confirm-del-widget))
+  (reblocks/html:with-html
+      (:p (content cdelw))))
+(defmethod show-popup ((cdelw confirm-del-widget))
+  (setf (visible-p cdelw) t)
+  (reblocks/widget:update cdelw))
+|#
 
 (defmethod reblocks/widget:render ((task task))
     (reblocks/html:with-html
@@ -85,10 +100,25 @@
                      (combine-title-tag task)))
 	  (:input :type "submit"
 		  :class "button"
+		  :id (format nil "delete-btn-~a" (title task))
 		  :value "Delete"
-		  :onclick (reblocks/actions:make-js-action
-                            (lambda (&key &allow-other-keys)
-                              (del-task task)))))))
+		  :onclick "if (confirm('are you sure to delete?')){deleteTaskFunction('~a');}" (title task))))
+  (reblocks/js/base:with-javascript
+      (format nil (concatenate 'string "function deleteTaskFunction(taskTitle) {"
+			       "window[taskTitle + '_deleteTask']();"
+			       "}"
+			       "window['~a_deleteTask']=~a;"
+			       )
+	      (title task)
+	      (reblocks/actions:make-js-action
+	       (lambda (&key &allow-other-keys)
+		 (del-task task)))))))
+		           ;;(reblocks/js/base:with-javascript
+			     ;;"confirm(\"Proceed to delete\");")))))
+		           ;;(reblocks/actions:make-js-action
+                            ;;(lambda (&key &allow-other-keys)
+                              ;;(del-task task)
+			      ;;(show-popup (make-confirm-del-pop))))))))
 
   (defmethod reblocks/widget:render ((widget task-list))
     "Render a list of tasks."
