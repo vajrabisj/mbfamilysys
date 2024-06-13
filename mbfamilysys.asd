@@ -9,5 +9,6 @@
   :depends-on ("reblocks"
 	       "reblocks-navigation-widget"
 	       "reblocks-ui"
+               "reblocks-parenscript"
 	       "mito")
   :pathname "src")
