@@ -101,17 +101,18 @@
                 (reblocks/html:with-html
                   (:s (combine-title-tag task)))
                 (combine-title-tag task)))
-      ;; Input element for delete button with confirmation dialog
+      ;; Input element for the delete button with confirmation dialog
       (:input :type "submit"
               :class "button"
               :value "Delete"
-              :onclick (let ((delete-action (reblocks/actions:make-js-action
-                                             (lambda (&key &allow-other-keys)
-                                               (del-task task)))))
-                         (parenscript:ps
-                          (when (confirm "Are you sure you want to delete this task?")
-                            (,@delete-action)))))))))
-
+              :onclick 
+              (reblocks-parenscript:make-js-handler
+                :lisp-code ((&key)
+                            (del-task task))
+                :js-code ()
+                (when (confirm "Are you sure you want to delete this task?")
+                  (this.@delete-task)))))))
+	
   (defmethod reblocks/widget:render ((widget task-list))
     "Render a list of tasks."
     (reblocks/html:with-html
