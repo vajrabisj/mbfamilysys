@@ -107,11 +107,12 @@
               :value "Delete"
               :onclick 
               (reblocks-parenscript:make-js-handler
-                :lisp-code ((&key)
-                            (del-task task))
-                :js-code ()
-                (when (confirm "Are you sure you want to delete this task?")
-                  (this.@delete-task)))))))
+                    :lisp-code ((&key confirmed)
+                                (if confirmed
+                                    (delete task)))
+                    :js-code ((event)
+                              (let ((confirmed (ps:confirm "Are you sure you want to delete this task?")))
+                                (parenscript:create :confirmed confirmed)))))))))
 	
   (defmethod reblocks/widget:render ((widget task-list))
     "Render a list of tasks."
